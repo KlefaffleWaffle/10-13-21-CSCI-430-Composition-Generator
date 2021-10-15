@@ -11,7 +11,7 @@
 #include <vector>
 
 int getNote(int OctaveNum, int key);
-// Generates Note, calls getKeyNote, which does the brunt of the work 
+// Generates Midi Note Number, calls getKeyNote, which does the brunt of the work 
 
 std::string Num2Value(int);
 // Generates the Name of the Note and its midi octave in a human readable format based on the number input
