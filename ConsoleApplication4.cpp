@@ -1,8 +1,7 @@
 //Was having trouble with generating Random values earlier, some libraries are not necessary.
 
 #include <iostream>
-#include <ctime>
-#include <cstdlib>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -10,19 +9,128 @@
 #include <String>
 #include <vector>
 
-int getNote(int OctaveNum, int key);
-// Generates Midi Note Number, calls getKeyNote, which does the brunt of the work 
+std::vector<int> key; 
+std::vector<int> midiMelody; //Is used to get a common pattern, but later in the song may see variation.
+std::vector<int> majorKeyProgression = { 0,2,2,1,2,2,2};
+std::vector<int> minorKeyProgression = { 0,2,1,2,2,1,2 };
+std::vector<std::string> notesHuman = { "C","C#","D","D#","E","F", "F#", "G","G#","A","A#","B" };
+
+
+
+
+void setKeyNotes(std::string baseNote);
+
+void BaselineGenerator(int ProgressionStyle);
+
+
+int getNoteFullMIDINumber(int OctaveNum, int key);
+// Generates Note, calls getKeyNote, which does the brunt of the work 
 
 std::string Num2Value(int);
 // Generates the Name of the Note and its midi octave in a human readable format based on the number input
 // Gets called by getKeyNote
 
-std::string getKeyNote(int key, int& midiNumber, int OctaveNum);
+
+std::string Mod2Value(int);
+//Same as Num2Value except does not include octave
+
+std::string getNoteHumanWithOct(int key, int& midiNumber, int OctaveNum);
 // Generates a random note based on the key. returns a string, but midiNumber is REDEFINED by the function. 
 // Calls Num2Value
 // Gets called by getNote
 
 std::vector<int> values;
+
+class Note {
+public:
+    std::string name;
+    int octave;
+    int midiNumber;
+    int velocity;
+    int length;
+};
+
+
+class Chord {
+public:
+    int midiNotes[3] = {};
+    int noteModulus;
+    int octaveNum;
+
+    int getOctaveNum() {
+        return octaveNum;
+    }
+
+    /*
+    Make sure chord fits key.
+    */
+    Chord(int FMnote, bool majTrue) {
+        noteModulus = FMnote % 12;
+        octaveNum = ((FMnote - noteModulus) / 12) - 1;
+
+        //Midi value of the notes in the chord
+        midiNotes[0] = FMnote;
+
+        int pos = -1;
+
+        //Finds the position in key array 
+
+
+        for (int i = 0; i < key.size(); i++) {
+            if (key.at(i) == noteModulus) {
+                pos = i;
+                break;
+            }
+        }
+
+
+
+
+        //Finds the 2nd value in key, if pos is greater than size it loops to beginning
+        pos += 2;
+
+        if (pos >= 7) {
+            pos -= 7;
+        }
+
+        if (majTrue == true) {
+            midiNotes[1] = ((octaveNum + 1) * 12) + key[pos];
+        }
+        else {
+            //Verify Me;
+            midiNotes[1] = ((octaveNum + 1) * 12) + (key[pos]-1);
+        }
+
+        pos += 2;
+
+        if (pos >= 7) {
+            pos -= 7;
+        }
+
+        midiNotes[2] = ((octaveNum + 1) * 12) + key[pos];
+
+
+    }
+
+    void displayChordNoteNumbers() {
+        
+    }
+
+    void displayChordNoteLetters() {
+        for (int i = 0; i < 3; i++) {
+            std::cout << Num2Value(midiNotes[i]) << std::endl;
+        }
+    
+    };
+
+
+    
+
+};
+std::vector<Chord> chordListVec;
+
+void arpeggiatorHelper(Chord, int numOfNotes);
+void scale(int numOfNotes, int midiNote, bool up);
 
 
 
@@ -32,41 +140,29 @@ int main()
     int iterations = 0;
     //Used to determine the number of notes 
 
-    while (iterations < 15) {
-        //int key = rand() % 12;
-        int key = 11; 
-        /*
-        0 is C
-        1 is C#
-        2 is D
-        3 is D# 
-        ...
-        11 is B
 
-        10/13/21 all keys are assumed to be major 
-        */
+    int startingNote = 0;
+    setKeyNotes(Mod2Value(startingNote));
+
+    std::cout << std:: endl;
+
+   // Chord c(71, true);
 
 
-        int reUse = getNote(3, key);
-        // getNote uses a random function, calling it twice will produce different results.
-        // Saving the value in reUse allows us to reuse the value which will be necessary for display purposes.
+    BaselineGenerator(0);
 
-        std::cout << reUse << "    ";
-        values.push_back(reUse);
-        iterations++;
+    for (int i = 0; i < 4; i++) {
+        arpeggiatorHelper(chordListVec.at(i), 9);
     }
+
     std::cout << std::endl;
 
+    scale(15, 0, true);
 
-    std::string x;
-    for (int i = 0; i < values.size(); i++) {
-        x = Num2Value(values.at(i));
-        std::cout << x  << "    ";
-    }
 }
 
 
-int getNote(int OctaveNum, int key) {
+int getNoteFullMIDINumber(int OctaveNum, int key) {
   
     int NoteValue =-1;
     int change = (rand() % 3) - 1;
@@ -76,7 +172,7 @@ int getNote(int OctaveNum, int key) {
     int midiNoteValue = -1;
 
     
-    getKeyNote(key, midiNoteValue, OctaveNum);
+    getNoteHumanWithOct(key, midiNoteValue, OctaveNum);
     //Returns string name; i.e. C3, C#1, D4 etc.
     //midiNoteValue is pass by reference. 
 
@@ -141,11 +237,62 @@ std::string Num2Value(int value) {
 
 }
  
+std::string Mod2Value(int value) {
+    int x = value % 12;
+    std::string output;
+    output = "";
 
+
+    switch (x) {
+    case 0:
+        output += "C";
+        break;
+    case 1:
+        output += "C#";
+        break;
+    case 2:
+        output += "D";
+        break;
+    case 3:
+        output += "D#";
+        break;
+    case 4:
+        output += "E";
+        break;
+    case 5:
+        output += "F";
+        break;
+    case 6:
+        output += "F#";
+        break;
+    case 7:
+        output += "G";
+        break;
+    case 8:
+        output += "G#";
+        break;
+    case 9:
+        output += "A";
+        break;
+    case 10:
+        output += "A#";
+        break;
+    case 11:
+        output += "B";
+        break;
+    case 12:
+        output += "C";
+        break;
+    }
+
+
+    return output;
+
+}
 //Midi Note Formula (octaveNumber + 1)*12 + NoteModulusValue
 //NoteModulusValue is "Num" in the following code.
 
-std::string getKeyNote(int key, int& midiNumber, int OctaveNum) {
+std::string getNoteHumanWithOct(int key, int& midiNumber, int OctaveNum) {
     while (true) {
         int num = rand() % 12;
         /*
@@ -247,16 +394,139 @@ std::string getKeyNote(int key, int& midiNumber, int OctaveNum) {
 
 }
     
+void setKeyNotes(std::string baseNote) {
+
+    std::cout << "You have chosen the key of " << baseNote << std::endl;
+    int noteValue = -1;
+    for (int i = 0; i < 12; i++) {
+        if (notesHuman[i] == baseNote) {
+            noteValue = i;
+         
+            break;
+        }
+    }
+
+        //change depend on major or minor
+    
+    key.push_back(noteValue);
+       // std::cout << "Looping " << std::endl;
+        for (int i = 1; i < 7; i++) {
+            
+            key.push_back(key.at(i-1) + majorKeyProgression.at(i));
+           
+            if (key.at(i) >= 12) {
+                key.at(i) -= 12;
+            }
+        }
+    
+        std::cout << "Values are: ";
+        for (int i = 0; i < key.size(); i++) {
+            std::cout << key.at(i) << ", ";
+        }
+        std::cout << std::endl;
+}
+
+void BaselineGenerator(int ProgressionStyle) {
+    //Assume 1451;   
+    
+    //Add octave to chord generation.;
+    
+    Chord first(key.at(0), true);
+    Chord second(key.at(3), true);
+    Chord third(key.at(4), true);
+    Chord fourth = first;
+
+    chordListVec.push_back(first);
+    chordListVec.push_back(second);
+    chordListVec.push_back(third);
+    chordListVec.push_back(fourth);
+}
+
+void arpeggiatorHelper(Chord c, int numOfNotes) {
+    //Notes per chord parameter
+
+    int x = numOfNotes;
+    int octaveNumber = c.getOctaveNum() +1;
+    std::vector<int> arpeggNotes;
+    
+    int notesPlayed = 0;
+    int pos = 0;
+
+    bool up = true;
+
+    while (notesPlayed < numOfNotes) {
+        if (pos > 2) {
+            pos = 1;
+            up = false;
+        }
+        else if (pos < 0) {
+            pos = 1;
+            up = true;
+        }
+
+        arpeggNotes.push_back(c.midiNotes[pos]);
+        std::cout << Num2Value(c.midiNotes[pos] + 12) << "   ";
 
 
 
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
 
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
+
+        if (up == true) {
+            pos++;
+        }
+        else {
+            pos--;
+        }
+        notesPlayed++;
+    }
+    
+    std::cout << std::endl;
+    c.displayChordNoteLetters();
+    std::cout << std::endl;
+}
+
+void scale(int numOfNotes, int midiNote, bool up) {
+    int notesPlayed = 0;
+    int pos = -1;
+    int startingNoteMod = midiNote % 12;
+    int octave = ((midiNote - startingNoteMod) / 12) + 1;
+    int addedVal = octave * 12;
+
+
+    for (int i = 0; i < 7; i++) {
+        if (key[i] == startingNoteMod) {
+            pos = i;
+            break;
+        }
+    }
+
+    while (notesPlayed < numOfNotes) {
+        if (pos > 6) {
+            pos = 5;
+            up = false;
+        }
+        else if (pos < 0) {
+            pos = 1;
+            up = true;
+        }
+
+        std::cout << Num2Value(key[pos] + addedVal) << "   ";
+
+
+
+
+        
+        if (up == true) {
+            pos++;
+        }
+        else {
+            pos--;
+        }
+        notesPlayed++;
+    }
+
+    std::cout << std::endl;
+}
+
+
+
